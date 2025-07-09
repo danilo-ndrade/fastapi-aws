@@ -6,9 +6,6 @@ name: CI/CD AWS Deploy
 on:
   push:
     branches: ["main"]
-    paths-ignore:
-      - "README.md"
-      - "*.png"
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
