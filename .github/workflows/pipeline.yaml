@@ -2,10 +2,13 @@
 
 name: CI/CD AWS Deploy
 
-# Gatilho: executa o workflow em cada push para a branch 'main'
+# Gatilho: executa o workflow em cada push para a branch 'main', exceto quando o push for feito no readme
 on:
   push:
     branches: ["main"]
+    paths-ignore:
+      - "README.md"
+      - "*.png"
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
