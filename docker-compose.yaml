@@ -1,9 +1,8 @@
 services:
   app:
-    build: .
-    container_name: fast-api
+    image: placeholder-image
+    container_name: fastapi-aws
     ports:
-      - "8000:8000"
-    volumes:
-      - .:/app
+      - "80:8000"
+    restart: always
     

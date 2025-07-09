@@ -1,0 +1,98 @@
+# .github/workflows/deploy.yml
+
+name: CI/CD AWS Deploy
+
+# Gatilho: executa o workflow em cada push para a branch 'main'
+on:
+  push:
+    branches: ["main"]
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  EC2_USERNAME: ${{ secrets.EC2_USERNAME }}
+
+# Permissões necessárias para autenticação OIDC
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-push:
+    name: Build and Push to ECR
+    runs-on: ubuntu-latest
+
+    outputs:
+      image_url: ${{ steps.build-image.outputs.image_url }}
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciais AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login no Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag e push da imagem para o ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }} # Usa o hash do commit como tag
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image_url=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: Deploy to EC2 Instance
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Copiar docker-compose.yml para a instância
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yaml"
+          target: "~/app"
+
+      - name: Executar o deploy na EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Navega para o diretório da aplicação na instância
+            cd ~/app
+
+            # Pega a URL da imagem do output do job anterior
+            IMAGE_URL=${{ needs.build-and-push.outputs.image_url }}
+
+            # ⭐️ PASSO CRÍTICO FALTANTE: Atualiza o docker-compose.yml na instância com a nova imagem!
+            # O comando 'sed' encontra a linha 'image:' e a substitui pela URL da nova imagem.
+            sed -i "s|image:.*|image: $IMAGE_URL|" docker-compose.yaml
+
+            # Autentica o Docker da instância no ECR usando a Role do IAM da própria instância
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+            # Baixa a imagem mais recente definida no docker-compose.yml
+            docker-compose pull
+
+            # Sobe o container. O Docker Compose irá recriar o serviço pois a imagem mudou.
+            docker-compose up -d --remove-orphans
+
+            # Limpa imagens antigas
+            docker image prune -af

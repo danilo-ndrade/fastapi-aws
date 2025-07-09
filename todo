@@ -1,0 +1,4 @@
+- fazer um user para o github actions. incluo no fluxo do terraform ?
+- configurar secrets no github
+- implementar git hub actions para buildar a imagem e subir pro ecr
+- fazer a instancia rodar o container com a imagem do ecr
