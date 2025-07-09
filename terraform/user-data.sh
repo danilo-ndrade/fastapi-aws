@@ -2,8 +2,9 @@
 
 sudo yum update -y
 
-# Instalar Docker
-sudo amazon-linux-extras install docker -y
+# Instalar Docker, no amazon linux 2023 é dessa forma, 
+# sem amazon-linux-extras
+sudo yum install -y docker
 
 # Inicia serviço do Docker
 sudo systemctl enable docker
