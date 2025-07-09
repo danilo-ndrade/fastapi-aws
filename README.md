@@ -18,7 +18,7 @@ O código da API feita com FastAPI é um fork de um projeto utilizado durante a 
 
 ## 🏗️ Arquitetura
 
-![alt text](https://github.com/danilo-ndrade/fastapi-aws/blob/main/architecture.png "Logo Title Text 1")
+![alt text](https://github.com/danilo-ndrade/fastapi-aws/blob/main/architecture.png "Arquitetura do projeto")
 
 ### 🔧 Stack Tecnológica
 
