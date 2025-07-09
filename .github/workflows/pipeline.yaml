@@ -47,8 +47,10 @@ jobs:
           IMAGE_TAG: ${{ github.sha }} # Usa o hash do commit como tag
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image_url=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          echo "image_url=$ECR_REGISTRY/$ECR_REPOSITORY:latest" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy to EC2 Instance
@@ -74,23 +76,20 @@ jobs:
           host: ${{ env.EC2_HOST }}
           username: ${{ env.EC2_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_URL,AWS_REGION,AWS_ACCOUNT_ID
-        env:
-          IMAGE_URL: ${{ needs.build-and-push.outputs.image_url }}
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          envs: AWS_REGION,AWS_ACCOUNT_ID,ECR_REPOSITORY
           script: |
             # Navega para o diretório da aplicação na instância
             cd ~/app
 
-            # Pega a URL da imagem do output do job anterior
+            # Autentica o Docker da instância no ECR usando a Role do IAM da própria instância
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+            # Constrói a URL da imagem mais recente (latest)
+            IMAGE_URL="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPOSITORY:latest"
             echo "IMAGE_URL: $IMAGE_URL"
 
             # Atualiza o docker-compose.yml na instância com a nova imagem
-            # O comando 'sed' encontra a linha 'image:' e substitui pela URL da nova imagem
             sed -i "s|image:.*|image: $IMAGE_URL|" docker-compose.yaml
-
-            # Autentica o Docker da instância no ECR usando a Role do IAM da própria instância
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
             # Baixa a imagem mais recente definida no docker-compose.yml
             docker-compose pull
@@ -100,3 +99,5 @@ jobs:
 
             # Limpa imagens antigas
             docker image prune -af
+        env:
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
