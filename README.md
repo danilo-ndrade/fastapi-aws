@@ -72,7 +72,11 @@ O código da API feita com FastAPI é um fork de um projeto utilizado durante a 
 
 ## ☁️ Deploy na AWS
 
+O deploy na AWS é dividido em 4 etapas principais: provisionamento da infraestrutura, configuração da autenticação segura entre GitHub e AWS, configuração dos segredos no repositório e, finalmente, o deploy automático via push.
+
 ### 🏗️ 1. Configuração da Infraestrutura (Terraform)
+
+Primeiro, provisione todos os recursos necessários na AWS executando os comandos do Terraform.
 
 ```bash
 cd terraform/
@@ -90,21 +94,44 @@ terraform apply
 - IAM Roles e Policies
 - Internet Gateway e Route Table
 
-### 🔐 2. Configuração dos Secrets no GitHub
+### 🔐 2. Configuração da Autenticação OIDC
+
+Para que o GitHub Actions possa se comunicar com a AWS de forma segura, sem usar chaves de acesso de longa duração, configuramos uma relação de confiança via OpenID Connect (OIDC). Esta é uma configuração única na sua conta AWS.
+
+### 2.1. Criar o Provedor de Identidade (Identity Provider)
+
+No console da AWS, vá para IAM > Provedores de identidade e adicione um novo provedor com as seguintes informações:
+
+  - Tipo de provedor: OpenID Connect
+  - URL do provedor: https://token.actions.githubusercontent.com
+  - Público (Audience): sts.amazonaws.com
+
+### 2.2. Criar a Role (Função) para o GitHub Actions
+
+Crie uma nova Role no IAM que será "assumida" pelo GitHub Actions para obter permissões temporárias. Vá em IAM > Roles > Create role: 
+  
+  - Em Trusted entity type selecione 'Web Identity'
+  - Identity provider: **https://token.actions.githubusercontent.com**
+  - Audience: sts.amazonaws.com
+  - GitHUb organizations: sua organização ou sua conta do github
+  - GitHub repository: nome do seu repositório(é opcional mas recomendado)
+  - Github branch: main
+
+### 🔑 3. Configuração dos Secrets no GitHub
 
 Configure os seguintes secrets no seu repositório GitHub:
 
 ```
-AWS_REGION=us-east-1
-AWS_ACCOUNT_ID=123456789012
-AWS_ROLE_TO_ASSUME=arn:aws:iam::123456789012:role/GitHubActionsRole
-ECR_REPOSITORY=fastapi-aws-app
-EC2_HOST=ec2-x-x-x-x.compute-1.amazonaws.com
-EC2_USERNAME=ubuntu
-SSH_PRIVATE_KEY=-----BEGIN RSA PRIVATE KEY-----...
+AWS_REGION= sa-east-1 (ou a região da sua preferência)
+AWS_ACCOUNT_ID= ID da sua conta AWS
+AWS_ROLE_TO_ASSUME= o ARN da role criada para o GitHubActions
+ECR_REPOSITORY= Nome do repositório do ECR 
+EC2_HOST= IP Público da instância
+EC2_USERNAME= ec2-user
+SSH_PRIVATE_KEY= Key privada para acesso a instância
 ```
 
-### 🚀 3. Deploy Automático
+### 🚀 4. Deploy Automático
 
 O deploy é automatizado via GitHub Actions:
 
@@ -166,19 +193,9 @@ fastapi-aws/
 - **Security Groups** configurados adequadamente
 - **Container isolation** com Docker
 
-## 🤝 Contribuindo
-
-Este é um projeto de estudo, mas contribuições são bem-vindas:
-
-1. Fork o projeto
-2. Crie sua feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
-5. Abra um Pull Request
-
 ## 👨‍💻 Autor
 
 **Danilo Santos**
 
-- GitHub: [@danilo-santos](https://github.com/danilo-ndrade)
+- GitHub: [@danilo-ndrade](https://github.com/danilo-ndrade)
 - LinkedIn: [Danilo Andrade](https://www.linkedin.com/in/danilo-andrade-santos/)
